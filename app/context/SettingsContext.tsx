@@ -13,6 +13,11 @@ export interface SettingsState extends Omit<ChatRequest, 'messages'> {
   systemMessage?: Message;
   prefixMessages?: Message[];
   availableModels: Model[];
+  pgptImageBaseUrl?: string;
+  pgptApiKey?: string;
+  pgptModels?: string;
+  pgptImageCount?: number;
+  pgptImageSize?: string;
 }
 
 const INITIAL_SETTINGS: SettingsState = {

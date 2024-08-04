@@ -43,6 +43,27 @@ export enum Model {
   'gpt-4-32k-0613' = 'gpt-4-32k-0613',
 }
 
+/**
+ * PGPT Image 模型
+ */
+export enum PgptImageModel {
+  'dall-e-2' = 'dall-e-2',
+  'dall-e-3' = 'dall-e-3',
+}
+
+export const PgptImageModels = [PgptImageModel['dall-e-2'], PgptImageModel['dall-e-3']];
+
+/**
+ * PGPT Image 生成尺寸
+ */
+export enum PgptImageSize {
+  '1024x1024' = '1024x1024',
+  '1024x1792' = '1024x1792',
+  '1792x1024' = '1792x1024',
+}
+
+export const PgptImageSizes = [PgptImageSize['1024x1024'], PgptImageSize['1024x1792'], PgptImageSize['1792x1024']];
+
 export const AllModels = [
   Model['gpt-3.5-turbo'],
   Model['gpt-3.5-turbo-0613'],
@@ -321,3 +342,41 @@ export const exampleModelsResponse: ModelsResponse = {
   ],
   object: 'list',
 };
+
+/**
+ * /v1/images/generations 的请求体
+ * https://docs.pgpt.cloud/openai.html#edits
+ */
+export interface ImageGenerationRequest {
+  model: PgptImageModel;
+  prompt: string;
+  size?: '1024x1024' | '1024x1792' | '1792x1024';
+  n?: 1 | 10;
+}
+
+export interface ImageGenerationResponseContent {
+  filtered: boolean;
+  severity: string;
+}
+
+export interface ImageGenerationResponseContentResults {
+  hate: ImageGenerationResponseContent;
+  self_harm: ImageGenerationResponseContent;
+  sexual: ImageGenerationResponseContent;
+  violence: ImageGenerationResponseContent;
+}
+
+/**
+ * /v1/images/generations 的响应体
+ * https://docs.pgpt.cloud/openai.html#edits
+ */
+export interface ImageGenerationResponse {
+  created: number;
+  data: {
+    b64_json: null;
+    revised_prompt: string;
+    url: string;
+    content_filter_results: ImageGenerationResponseContentResults;
+    prompt_filter_results: ImageGenerationResponseContentResults;
+  }[];
+}

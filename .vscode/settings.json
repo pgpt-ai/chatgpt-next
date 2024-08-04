@@ -12,7 +12,7 @@
   // 默认值已经包含了大多数文件类型了，故不需要再特殊配制
   // "eslint.probe": ["javascript", "javascriptreact", "typescript", "typescriptreact", "html", "vue", "markdown"],
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
+    "source.fixAll.eslint": "explicit"
   },
   "css.lint.unknownAtRules": "ignore",
   "typescript.tsdk": "node_modules/typescript/lib",
@@ -22,6 +22,7 @@
     "Buildx",
     "chatgpt",
     "commonmark",
+    "dall",
     "DOCKERHUB",
     "endregion",
     "eventsource",
@@ -34,6 +35,7 @@
     "micromessenger",
     "nextjs",
     "OPENAI",
+    "pgpt",
     "pnpm",
     "postversion",
     "preversion",
