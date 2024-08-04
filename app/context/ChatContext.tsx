@@ -4,9 +4,9 @@ import omit from 'lodash.omit';
 import type { FC, ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
-import { fetchApiChat } from '@/utils/api';
+import { fetchApiChat, fetchApiChatImages } from '@/utils/api';
 import { getCache, setCache } from '@/utils/cache';
-import type { ChatResponse, Message } from '@/utils/constants';
+import type { ChatResponse, ImageGenerationResponse, Message } from '@/utils/constants';
 import { MAX_TOKENS, Model, Role } from '@/utils/constants';
 import type { ResError } from '@/utils/error';
 import { isMessage } from '@/utils/message';
@@ -102,56 +102,110 @@ export const ChatProvider: FC<{ children: ReactNode }> = ({ children }) => {
       await sleep(16);
       scrollToBottom();
 
-      try {
-        // stream 模式下，由前端组装消息
-        let partialContent = '';
-        const fetchApiChatMessages = newMessages
-          // 过滤掉 isError 的消息
-          .filter((message) => !(message as Message).isError)
-          .slice(-(settings.maxHistoryLength + 1))
-          .map((message) => {
-            return isMessage(message) ? message : message.choices[0].message;
+      if (
+        content.search('给我画一张图') !== -1 &&
+        [settings.pgptApiKey, settings.pgptImageBaseUrl, settings.pgptModels].every(
+          (value) => value !== null && value !== undefined && value !== '',
+        )
+      ) {
+        try {
+          let partialContent = '';
+          const fullContent = await fetchApiChatImages({
+            pgptApiKey: settings.pgptApiKey!,
+            pgptImageBaseUrl: settings.pgptImageBaseUrl!,
+            pgptModels: settings.pgptModels!,
+            pgptImageCount: settings.pgptImageCount ?? 1,
+            pgptImageSize: settings.pgptImageSize ?? '1024x1024',
+            message: content,
+            onMessage: (content) => {
+              console.log(content);
+              const json: ImageGenerationResponse = JSON.parse(content);
+              partialContent += json.data.map((data) => `![Image](${data.url})  `);
+              setIsLoading(false);
+              setMessages([...newMessages, { role: Role.assistant, content: partialContent }]);
+              // 如果当前滚动位置距离最底端少于等于 72（即 3 行）并且当前用户没有正在滚动，则保持滚动到最底端
+              if (gapToBottom() <= 72 && !getIsScrolling()) {
+                scrollToBottom();
+              }
+            },
           });
-        // 如果有前置消息，则写入到最前面
-        if (settings.prefixMessages && settings.prefixMessages.length > 0) {
-          fetchApiChatMessages.unshift(...settings.prefixMessages);
-        }
-        // 如果有系统消息，则写入到最前面
-        if (settings.systemMessage) {
-          fetchApiChatMessages.unshift(settings.systemMessage);
-        }
-        // TODO 收到完整消息后，写入 cache 中
-        const fullContent = await fetchApiChat({
-          ...omit(settings, 'maxHistoryLength', 'systemMessage', 'prefixMessages', 'availableModels'),
-          messages: fetchApiChatMessages,
-          stream: true,
-          onMessage: (content) => {
-            // stream 模式下，由前端组装消息
-            partialContent += content;
-            setIsLoading(false);
-            setMessages([...newMessages, { role: Role.assistant, content: partialContent }]);
-            // 如果当前滚动位置距离最底端少于等于 72（即 3 行）并且当前用户没有正在滚动，则保持滚动到最底端
-            if (gapToBottom() <= 72 && !getIsScrolling()) {
-              scrollToBottom();
-            }
-          },
-        });
 
-        // 收到完整消息后，重新设置 messages
-        newMessages = [...newMessages, { role: Role.assistant, content: fullContent }];
-        setMessages(newMessages);
-        setCache('messages', newMessages);
-        // 如果当前滚动位置距离最底端少于等于 72（即 3 行）并且当前用户没有正在滚动，则保持滚动到最底端
-        if (gapToBottom() <= 72 && !getIsScrolling()) {
-          scrollToBottom();
+          // 收到完整消息后，重新设置 messages
+          newMessages = [...newMessages, { role: Role.assistant, content: partialContent }];
+          setMessages(newMessages);
+          setCache('messages', newMessages);
+          // 如果当前滚动位置距离最底端少于等于 72（即 3 行）并且当前用户没有正在滚动，则保持滚动到最底端
+          if (gapToBottom() <= 72 && !getIsScrolling()) {
+            scrollToBottom();
+          }
+        } catch (e: any) {
+          // 发生错误时，展示错误消息
+          setIsLoading(false);
+          setMessages([
+            ...newMessages,
+            {
+              isError: true,
+              role: Role.assistant,
+              content: (e as ResError).message || (e as ResError).code.toString(),
+            },
+          ]);
         }
-      } catch (e) {
-        // 发生错误时，展示错误消息
-        setIsLoading(false);
-        setMessages([
-          ...newMessages,
-          { isError: true, role: Role.assistant, content: (e as ResError).message || (e as ResError).code.toString() },
-        ]);
+      } else {
+        try {
+          // stream 模式下，由前端组装消息
+          let partialContent = '';
+          const fetchApiChatMessages = newMessages
+            // 过滤掉 isError 的消息
+            .filter((message) => !(message as Message).isError)
+            .slice(-(settings.maxHistoryLength + 1))
+            .map((message) => {
+              return isMessage(message) ? message : message.choices[0].message;
+            });
+          // 如果有前置消息，则写入到最前面
+          if (settings.prefixMessages && settings.prefixMessages.length > 0) {
+            fetchApiChatMessages.unshift(...settings.prefixMessages);
+          }
+          // 如果有系统消息，则写入到最前面
+          if (settings.systemMessage) {
+            fetchApiChatMessages.unshift(settings.systemMessage);
+          }
+          // TODO 收到完整消息后，写入 cache 中
+          const fullContent = await fetchApiChat({
+            ...omit(settings, 'maxHistoryLength', 'systemMessage', 'prefixMessages', 'availableModels'),
+            messages: fetchApiChatMessages,
+            stream: true,
+            onMessage: (content) => {
+              // stream 模式下，由前端组装消息
+              partialContent += content;
+              setIsLoading(false);
+              setMessages([...newMessages, { role: Role.assistant, content: partialContent }]);
+              // 如果当前滚动位置距离最底端少于等于 72（即 3 行）并且当前用户没有正在滚动，则保持滚动到最底端
+              if (gapToBottom() <= 72 && !getIsScrolling()) {
+                scrollToBottom();
+              }
+            },
+          });
+
+          // 收到完整消息后，重新设置 messages
+          newMessages = [...newMessages, { role: Role.assistant, content: fullContent }];
+          setMessages(newMessages);
+          setCache('messages', newMessages);
+          // 如果当前滚动位置距离最底端少于等于 72（即 3 行）并且当前用户没有正在滚动，则保持滚动到最底端
+          if (gapToBottom() <= 72 && !getIsScrolling()) {
+            scrollToBottom();
+          }
+        } catch (e) {
+          // 发生错误时，展示错误消息
+          setIsLoading(false);
+          setMessages([
+            ...newMessages,
+            {
+              isError: true,
+              role: Role.assistant,
+              content: (e as ResError).message || (e as ResError).code.toString(),
+            },
+          ]);
+        }
       }
     },
     [settings, messages, history, historyIndex],

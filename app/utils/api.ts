@@ -1,5 +1,5 @@
-import type { ChatRequest, ModelsResponse } from './constants';
-import { HttpHeaderJson, HttpMethod } from './constants';
+import type { ChatRequest, ImageGenerationRequest, ImageGenerationResponse, ModelsResponse } from './constants';
+import { HttpHeaderJson, HttpMethod, PgptImageModel, PgptImageModels } from './constants';
 import { ResError } from './error';
 import { stream2string } from './stream';
 
@@ -50,6 +50,40 @@ export const fetchApiModels = async (): Promise<ModelsResponse> => {
   return await fetchResult.json();
 };
 
+/**
+ * 图片生成请求
+ */
+export const fetchApiChatImages = async ({
+  onMessage,
+  ...chatRequest
+}: {
+  /**
+   * 接受 stream 消息的回调函数
+   */
+  onMessage?: (content: string) => void;
+} & {
+  pgptApiKey: string;
+  pgptImageBaseUrl: string;
+  pgptModels: string;
+  pgptImageCount: number;
+  pgptImageSize: string;
+  message: string;
+} & Partial<ImageGenerationRequest>) => {
+  const fetchResult = await fetch(`${chatRequest.pgptImageBaseUrl}/v1/images/generations`, {
+    method: HttpMethod.POST,
+    headers: {
+      ...HttpHeaderJson,
+      Authorization: `Bearer ${chatRequest.pgptApiKey}`,
+    },
+    body: JSON.stringify({
+      model: chatRequest.pgptModels,
+      prompt: chatRequest.message,
+      n: chatRequest.pgptModels === PgptImageModel['dall-e-2'] ? chatRequest.pgptImageCount : 1,
+      size: chatRequest.pgptImageSize ?? '1024x1024',
+    }),
+  });
+  return await stream2string(fetchResult.body, onMessage);
+};
 /**
  * 处理 fetchResult 的错误
  */
